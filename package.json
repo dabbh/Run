@@ -1,0 +1,136 @@
+{
+	"name": "run-a-code",
+	"displayName": "Run!",
+	"description": "Run any code instantly from your editor. One click. Any language. Minimal setup.",
+	"version": "0.0.4",
+	"publisher": "Danbh",
+	"author": "Danbh",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/danbh/code-run"
+	},
+	"homepage": "https://github.com/danbh/code-run#readme",
+	"bugs": {
+		"url": "https://github.com/danbh/code-run/issues"
+	},
+	"engines": {
+		"vscode": "^1.101.0"
+	},
+	"icon": "icon.png",
+	"license": "MIT",
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"run code",
+		"execute",
+		"script",
+		"python",
+		"java",
+		"javascript",
+		"typescript",
+		"go",
+		"rust",
+		"php",
+		"ruby",
+		"c#",
+		"dart",
+		"runner",
+		"code runner",
+		"terminal",
+		"run in terminal",
+		"compiler",
+		"interpreter",
+		"Run",
+		"Run!"
+	],
+	"activationEvents": [
+		"onLanguage:c",
+		"onLanguage:cpp",
+		"onLanguage:python",
+		"onLanguage:java",
+		"onLanguage:javascript",
+		"onLanguage:typescript",
+		"onLanguage:go",
+		"onLanguage:rust",
+		"onLanguage:php",
+		"onLanguage:ruby",
+		"onLanguage:csharp",
+		"onLanguage:dart"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "coderunner.runFile",
+				"title": "Run Code",
+				"icon": "$(play)"
+			}
+		],
+		"languages": [
+			{
+				"id": "c"
+			},
+			{
+				"id": "cpp"
+			},
+			{
+				"id": "python"
+			},
+			{
+				"id": "java"
+			},
+			{
+				"id": "javascript"
+			},
+			{
+				"id": "typescript"
+			},
+			{
+				"id": "go"
+			},
+			{
+				"id": "rust"
+			},
+			{
+				"id": "php"
+			},
+			{
+				"id": "ruby"
+			},
+			{
+				"id": "csharp"
+			},
+			{
+				"id": "dart"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "coderunner.runFile",
+				"key": "ctrl+cmd+r",
+				"mac": "ctrl+cmd+r",
+				"when": "editorTextFocus && (resourceExtname == '.py' || resourceExtname == '.java' || resourceExtname == '.c' || resourceExtname == '.cpp' || resourceExtname == '.js' || resourceExtname == '.ts' || resourceExtname == '.go' || resourceExtname == '.rs' || resourceExtname == '.php' || resourceExtname == '.rb' || resourceExtname == '.cs' || resourceExtname == '.dart')"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.101.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "20.x",
+		"@typescript-eslint/eslint-plugin": "^8.31.1",
+		"@typescript-eslint/parser": "^8.31.1",
+		"eslint": "^9.25.1",
+		"typescript": "^5.8.3",
+		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-electron": "^2.5.2"
+	}
+}
