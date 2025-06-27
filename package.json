@@ -7,11 +7,11 @@
 	"author": "Danbh",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/danbh/code-run"
+		"url": "https://github.com/dabbh/Run"
 	},
-	"homepage": "https://github.com/danbh/code-run#readme",
+	"homepage": "https://github.com/dabbh/Run#readme",
 	"bugs": {
-		"url": "https://github.com/danbh/code-run/issues"
+		"url": "https://github.com/dabbh/Run/issues"
 	},
 	"engines": {
 		"vscode": "^1.101.0"
