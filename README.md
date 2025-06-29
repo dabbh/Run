@@ -1,5 +1,9 @@
 # Run! - VS Code Extension 🚀
-
+![GitHub License](https://img.shields.io/github/license/dabbh/Run)
+![GitHub Stars](https://img.shields.io/github/stars/dabbh/Run?style=social)
+![GitHub Issues](https://img.shields.io/github/issues/dabbh/Run)
+![Downloads](https://img.shields.io/visual-studio-marketplace/d/Danbh.run-a-code)
+![Version](https://img.shields.io/visual-studio-marketplace/v/Danbh.run-a-code)
 A powerful and intuitive VS Code extension that adds a convenient run button to the status bar for multiple programming languages. Execute your code instantly with one click or a simple keyboard shortcut!
 
 ## ✨ Key Features
