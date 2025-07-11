@@ -39,7 +39,9 @@ exports.deactivate = deactivate;
 // Import the module and reference it with the alias vscode in your code below
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 let statusBarItem;
+const compilationOptions = new Map();
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -100,11 +102,85 @@ function getLanguageDisplayName(languageId) {
     };
     return displayNames[languageId] || languageId;
 }
-function runCurrentFile() {
+async function getCustomRunConfig(filePath) {
+    const folderPath = path.dirname(filePath);
+    const runFilePath = path.join(folderPath, '.Run');
+    const vscodeSettingsPath = path.join(folderPath, '.vscode', 'settings.json');
+    console.log(`Looking for .Run file at: ${runFilePath}`);
+    console.log(`Looking for .vscode/settings.json at: ${vscodeSettingsPath}`);
+    if (fs.existsSync(runFilePath)) {
+        console.log(`.Run file exists at: ${runFilePath}`);
+        try {
+            const content = fs.readFileSync(runFilePath, 'utf-8');
+            console.log(`.Run file content: ${content}`);
+            return JSON.parse(content);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Failed to parse .Run file: ${err}`);
+            console.error(`Error parsing .Run file: ${err}`);
+        }
+    }
+    else {
+        console.log(`.Run file does not exist at: ${runFilePath}`);
+    }
+    if (fs.existsSync(vscodeSettingsPath)) {
+        console.log(`.vscode/settings.json exists at: ${vscodeSettingsPath}`);
+        try {
+            const content = fs.readFileSync(vscodeSettingsPath, 'utf-8');
+            console.log(`.vscode/settings.json content: ${content}`);
+            const settings = JSON.parse(content);
+            return settings['runConfig'] || {};
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Failed to parse .vscode/settings.json: ${err}`);
+            console.error(`Error parsing .vscode/settings.json: ${err}`);
+        }
+    }
+    else {
+        console.log(`.vscode/settings.json does not exist at: ${vscodeSettingsPath}`);
+    }
+    console.log('No custom run configuration found.');
+    return {};
+}
+async function getCOptions(filePath) {
+    const customConfig = await getCustomRunConfig(filePath);
+    console.log(`Custom config for ${filePath}:`, customConfig);
+    if (customConfig.compileFlags && customConfig.runCommand) {
+        console.log(`Using custom compileFlags: ${customConfig.compileFlags}, runCommand: ${customConfig.runCommand}`);
+        return {
+            compileFlags: customConfig.compileFlags,
+            runCommand: customConfig.runCommand
+        };
+    }
+    if (compilationOptions.has(filePath)) {
+        console.log(`Using cached options for ${filePath}:`, compilationOptions.get(filePath));
+        return compilationOptions.get(filePath);
+    }
+    const compileFlags = await vscode.window.showInputBox({
+        prompt: 'Enter compilation flags for C (e.g., -Wall -Wextra)',
+        value: '-Wall -Wextra'
+    });
+    if (!compileFlags) {
+        throw new Error('Compilation flags are required');
+    }
+    const runCommand = await vscode.window.showInputBox({
+        prompt: 'Enter run command for C (e.g., valgrind ./output)',
+        value: './output'
+    });
+    if (!runCommand) {
+        throw new Error('Run command is required');
+    }
+    const options = { compileFlags, runCommand };
+    compilationOptions.set(filePath, options);
+    console.log(`Cached options for ${filePath}:`, options);
+    return options;
+}
+async function runCurrentFile() {
     console.log('Run command triggered');
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active file to run');
+        console.error('No active editor found.');
         return;
     }
     const document = editor.document;
@@ -112,37 +188,47 @@ function runCurrentFile() {
     console.log(`Current file language: ${languageId}`);
     if (!isSupportedLanguage(languageId)) {
         vscode.window.showErrorMessage(`Language ${languageId} is not supported`);
+        console.error(`Unsupported language: ${languageId}`);
         return;
     }
     // Save the file before running
-    document.save().then(() => {
-        const filePath = document.fileName;
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-        const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(filePath);
-        let command = getRunCommand(languageId, filePath);
-        console.log(`Generated command: ${command}`);
-        if (command) {
-            // Create and show terminal
-            const terminal = vscode.window.createTerminal({
-                name: `Run ${getLanguageDisplayName(languageId)}`,
-                cwd: cwd
-            });
-            terminal.show();
-            terminal.sendText(command);
-            vscode.window.showInformationMessage(`Running ${getLanguageDisplayName(languageId)} file...`);
-        }
+    await document.save();
+    const filePath = document.fileName;
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(filePath);
+    let command = await getRunCommand(languageId, filePath);
+    if (!command) {
+        console.error('No command generated.');
+        return;
+    }
+    console.log(`Generated command: ${command}`);
+    // Create and show terminal
+    const terminal = vscode.window.createTerminal({
+        name: `Run ${getLanguageDisplayName(languageId)}`,
+        cwd: cwd
     });
+    terminal.show();
+    terminal.sendText(command);
+    vscode.window.showInformationMessage(`Running ${getLanguageDisplayName(languageId)} file...`);
 }
-function getRunCommand(languageId, filePath) {
+async function getRunCommand(languageId, filePath) {
     const fileName = path.basename(filePath);
     const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+    if (languageId === 'c') {
+        try {
+            const { compileFlags, runCommand } = await getCOptions(filePath);
+            return `gcc ${compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${runCommand}`;
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(String(err));
+            return null;
+        }
+    }
     switch (languageId) {
         case 'python':
             return `python3 "${fileName}"`;
         case 'java':
             return `javac *.java && java ${fileNameWithoutExt}`;
-        case 'c':
-            return `gcc "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
         case 'cpp':
             return `g++ "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
         case 'javascript':
