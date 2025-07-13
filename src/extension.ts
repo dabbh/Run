@@ -56,7 +56,7 @@ function updateStatusBarItem() {
 }
 
 function isSupportedLanguage(languageId: string): boolean {
-	return ['c', 'cpp', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'php', 'ruby', 'csharp', 'dart'].includes(languageId);
+	return ['c', 'cpp', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'php', 'ruby', 'csharp', 'dart', 'latex'].includes(languageId);
 }
 
 function getLanguageDisplayName(languageId: string): string {
@@ -72,12 +72,13 @@ function getLanguageDisplayName(languageId: string): string {
 		'php': 'PHP',
 		'ruby': 'Ruby',
 		'csharp': 'C#',
-		'dart': 'Dart'
+		'dart': 'Dart',
+		'latex': 'LaTeX'
 	};
 	return displayNames[languageId] || languageId;
 }
 
-async function getCustomRunConfig(filePath: string): Promise<{ compileFlags?: string; runCommand?: string }> {
+async function getCustomRunConfig(filePath: string, languageId?: string): Promise<{ compileFlags?: string; runCommand?: string; fullCommand?: string }> {
 	const folderPath = path.dirname(filePath);
 	const runFilePath = path.join(folderPath, '.Run');
 	const vscodeSettingsPath = path.join(folderPath, '.vscode', 'settings.json');
@@ -90,7 +91,36 @@ async function getCustomRunConfig(filePath: string): Promise<{ compileFlags?: st
 		try {
 			const content = fs.readFileSync(runFilePath, 'utf-8');
 			console.log(`.Run file content: ${content}`);
-			return JSON.parse(content);
+			
+			// Try to parse as INI-style format first (with sections like [c], [cpp], etc.)
+			let config = parseRunFileWithSections(content, languageId);
+			
+			// If no language-specific config found, try JSON format
+			if (!config && content.trim().startsWith('{')) {
+				config = JSON.parse(content);
+			}
+
+			if (config) {
+				// Replace {filename} and {filenameWithExt} placeholders with the actual file names
+				const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+				const fileNameWithExt = path.basename(filePath);
+
+				const replacePlaceholders = (str: string) =>
+					str.replaceAll('{filename}', fileNameWithoutExt)
+					   .replaceAll('{filenameWithExt}', fileNameWithExt);
+
+				if (config.runCommand) {
+					config.runCommand = replacePlaceholders(config.runCommand);
+				}
+				if (config.fullCommand) {
+					config.fullCommand = replacePlaceholders(config.fullCommand);
+				}
+				if (config.compileFlags) {
+					config.compileFlags = replacePlaceholders(config.compileFlags);
+				}
+
+				return config;
+			}
 		} catch (err) {
 			vscode.window.showErrorMessage(`Failed to parse .Run file: ${err}`);
 			console.error(`Error parsing .Run file: ${err}`);
@@ -119,7 +149,7 @@ async function getCustomRunConfig(filePath: string): Promise<{ compileFlags?: st
 }
 
 async function getCOptions(filePath: string): Promise<{ compileFlags: string; runCommand: string }> {
-	const customConfig = await getCustomRunConfig(filePath);
+	const customConfig = await getCustomRunConfig(filePath, 'c');
 	console.log(`Custom config for ${filePath}:`, customConfig);
 
 	if (customConfig.compileFlags && customConfig.runCommand) {
@@ -135,27 +165,13 @@ async function getCOptions(filePath: string): Promise<{ compileFlags: string; ru
 		return compilationOptions.get(filePath)!;
 	}
 
-	const compileFlags = await vscode.window.showInputBox({
-		prompt: 'Enter compilation flags for C (e.g., -Wall -Wextra)',
-		value: '-Wall -Wextra'
-	});
-
-	if (!compileFlags) {
-		throw new Error('Compilation flags are required');
-	}
-
-	const runCommand = await vscode.window.showInputBox({
-		prompt: 'Enter run command for C (e.g., valgrind ./output)',
-		value: './output'
-	});
-
-	if (!runCommand) {
-		throw new Error('Run command is required');
-	}
+	// Use default options without prompting the user
+	const compileFlags = "-Wall -Wextra";
+	const runCommand = `./${path.basename(filePath, path.extname(filePath))}`;
 
 	const options = { compileFlags, runCommand };
 	compilationOptions.set(filePath, options);
-	console.log(`Cached options for ${filePath}:`, options);
+	console.log(`Cached default options for ${filePath}:`, options);
 	return options;
 }
 
@@ -208,6 +224,13 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 	const fileName = path.basename(filePath);
 	const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
 
+	// Check for custom configuration for any language
+	const customConfig = await getCustomRunConfig(filePath, languageId);
+	if (customConfig.fullCommand) {
+		console.log(`Using full custom command for ${languageId}: ${customConfig.fullCommand}`);
+		return customConfig.fullCommand;
+	}
+
 	if (languageId === 'c') {
 		try {
 			const { compileFlags, runCommand } = await getCOptions(filePath);
@@ -218,43 +241,90 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 		}
 	}
 
+	// Check for custom compile flags and run command for C++
+	if (languageId === 'cpp') {
+		if (customConfig.compileFlags && customConfig.runCommand) {
+			console.log(`Using custom C++ config: ${customConfig.compileFlags}, ${customConfig.runCommand}`);
+			return `g++ ${customConfig.compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${customConfig.runCommand}`;
+		}
+	}
+
 	switch (languageId) {
 		case 'python':
 			return `python3 "${fileName}"`;
-		
 		case 'java':
 			return `javac *.java && java ${fileNameWithoutExt}`;
-		
 		case 'cpp':
 			return `g++ "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
-		
 		case 'javascript':
 			return `node "${fileName}"`;
-		
 		case 'typescript':
 			return `npx ts-node "${fileName}"`;
-		
 		case 'go':
 			return `go run "${fileName}"`;
-		
 		case 'rust':
 			return `rustc "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
-		
 		case 'php':
 			return `php "${fileName}"`;
-		
 		case 'ruby':
 			return `ruby "${fileName}"`;
-		
 		case 'csharp':
 			return `dotnet run`;
-		
 		case 'dart':
 			return `dart run "${fileName}"`;
-		
+		case 'latex':
+			return `pdflatex "${fileName}" && xdg-open ${fileNameWithoutExt}.pdf`;
 		default:
 			return null;
 	}
+}
+
+function parseRunFileWithSections(content: string, languageId?: string): { compileFlags?: string; runCommand?: string; fullCommand?: string } | null {
+	if (!languageId) {
+		return null;
+	}
+
+	const lines = content.split('\n');
+	let currentSection = '';
+	let inTargetSection = false;
+	const config: { compileFlags?: string; runCommand?: string; fullCommand?: string } = {};
+
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		
+		// Skip empty lines and comments
+		if (!trimmedLine || trimmedLine.startsWith('#') || trimmedLine.startsWith('//')) {
+			continue;
+		}
+
+		// Check for section headers like [c], [cpp], [python]
+		const sectionMatch = trimmedLine.match(/^\[([^\]]+)\]$/);
+		if (sectionMatch) {
+			currentSection = sectionMatch[1].toLowerCase();
+			inTargetSection = currentSection === languageId.toLowerCase();
+			continue;
+		}
+
+		// If we're in the target section, parse key-value pairs
+		if (inTargetSection) {
+			const keyValueMatch = trimmedLine.match(/^([^:]+):\s*(.+)$/);
+			if (keyValueMatch) {
+				const key = keyValueMatch[1].trim();
+				const value = keyValueMatch[2].trim();
+				
+				if (key === 'compileFlags') {
+					config.compileFlags = value;
+				} else if (key === 'runCommand') {
+					config.runCommand = value;
+				} else if (key === 'fullCommand') {
+					config.fullCommand = value;
+				}
+			}
+		}
+	}
+
+	// Return config if we found any values, otherwise null
+	return Object.keys(config).length > 0 ? config : null;
 }
 
 // This method is called when your extension is deactivated

@@ -11,12 +11,15 @@ A powerful and intuitive VS Code extension that adds a convenient run button to 
 
 - **🎯 One-Click Execution**: Run your code instantly from the status bar
 - **⌨️ Keyboard Shortcut**: Quick execution with `Ctrl+Cmd+R`
-- **🌍 Multi-Language Support**: Supports 12+ popular programming languages
+- **🌍 Multi-Language Support**: Supports 13+ popular programming languages including LaTeX
 - **🔍 Smart Detection**: Automatically detects file type and shows appropriate run button
 - **💻 Terminal Integration**: Executes code in VS Code's integrated terminal
 - **💾 Auto-Save**: Automatically saves your file before execution
 - **🛡️ Error Handling**: Gracefully handles compilation and runtime errors
 - **🔄 Re-run Capability**: Easy to re-run code after fixing bugs
+- **⚙️ Custom Configuration**: Support for `.Run` files with language-specific settings
+- **🎛️ Variable Substitution**: Use `{filename}` and `{filenameWithExt}` placeholders
+- **📝 Default Commands**: Smart defaults for C files without user prompts
 
 ## 📦 Installation
 
@@ -52,7 +55,7 @@ Search for "Run!" by Danbh in the VS Code Extensions Marketplace
 |----------|----------------|--------------|--------------|
 | **Python** | `.py` | `python3 "filename.py"` | Python 3.x |
 | **Java** | `.java` | `javac *.java && java classname` | JDK |
-| **C** | `.c` | `gcc "filename.c" -o output && ./output` | GCC |
+| **C** | `.c` | `gcc -Wall -Wextra "filename.c" -o output && ./output` | GCC |
 | **C++** | `.cpp` | `g++ "filename.cpp" -o output && ./output` | G++ |
 | **JavaScript** | `.js` | `node "filename.js"` | Node.js |
 | **TypeScript** | `.ts` | `npx ts-node "filename.ts"` | Node.js + ts-node |
@@ -62,6 +65,7 @@ Search for "Run!" by Danbh in the VS Code Extensions Marketplace
 | **Ruby** | `.rb` | `ruby "filename.rb"` | Ruby |
 | **C#** | `.cs` | `dotnet run` | .NET SDK |
 | **Dart** | `.dart` | `dart run "filename.dart"` | Dart SDK |
+| **LaTeX** | `.tex` | `pdflatex "filename.tex" && xdg-open output.pdf` | LaTeX distribution |
 
 ## 📋 Requirements
 
@@ -78,6 +82,7 @@ Make sure you have the required tools installed for the languages you want to us
 - **Ruby**: Ruby interpreter
 - **C#**: .NET SDK
 - **Dart**: Dart SDK
+- **LaTeX**: LaTeX distribution (TeX Live, MiKTeX, etc.)
 
 ### TypeScript Additional Setup
 For TypeScript support, install ts-node globally:
@@ -105,6 +110,9 @@ sudo apt update && sudo apt install -y dotnet-sdk-8.0
 
 # TypeScript support
 npm install -g ts-node
+
+# LaTeX (Ubuntu/Debian)
+sudo apt install texlive-full
 ```
 
 ### Windows
@@ -117,6 +125,7 @@ npm install -g ts-node
 - **PHP**: Download from [php.net](https://php.net)
 - **Ruby**: Download from [rubyinstaller.org](https://rubyinstaller.org)
 - **.NET**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com)
+- **LaTeX**: Download [MiKTeX](https://miktex.org) or [TeX Live](https://tug.org/texlive/)
 
 ### macOS
 ```bash
@@ -126,6 +135,9 @@ xcode-select --install
 
 # .NET SDK
 brew install --cask dotnet
+
+# LaTeX
+brew install --cask mactex
 
 # TypeScript support
 npm install -g ts-node
@@ -158,6 +170,48 @@ int main() {
     return 0;
 }
 ```
+
+### LaTeX Example
+```latex
+\documentclass{article}
+\begin{document}
+Hello World!
+\end{document}
+```
+
+## ⚙️ Custom Configuration with .Run Files
+
+Create a `.Run` file in your project directory to customize execution commands for different languages:
+
+### Format
+```ini
+# Custom run configurations
+[c]
+compileFlags: -Wall -Wextra -g -std=c99
+runCommand: ./{filename}
+
+[cpp]
+compileFlags: -Wall -Wextra -std=c++17 -O2
+runCommand: ./{filename}
+
+[python]
+fullCommand: python3 {filenameWithExt} --verbose
+
+[latex]
+fullCommand: pdflatex {filenameWithExt} && bibtex {filename} && pdflatex {filenameWithExt} && xdg-open {filename}.pdf
+```
+
+### Available Variables
+- `{filename}` - File name without extension (e.g., "main" for "main.c")
+- `{filenameWithExt}` - Full file name (e.g., "main.c")
+
+### Configuration Options
+- **`compileFlags`** - Custom compilation flags (for compiled languages)
+- **`runCommand`** - Custom run command (used with compileFlags)
+- **`fullCommand`** - Complete custom command (overrides default behavior)
+
+### Supported in .Run files
+All supported languages can be customized: `[c]`, `[cpp]`, `[python]`, `[java]`, `[javascript]`, `[typescript]`, `[go]`, `[rust]`, `[php]`, `[ruby]`, `[csharp]`, `[dart]`, `[latex]`
 __run__
 
 ![demo Gif](https://i.ibb.co/pBL8LW3Y/ezgif-5fbc17b12bbc7b.gif)

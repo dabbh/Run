@@ -2,7 +2,7 @@
 	"name": "run-a-code",
 	"displayName": "Run!",
 	"description": "Run any code instantly from your editor. One click. Any language. Minimal setup.",
-	"version": "0.2.1",
+	"version": "0.2.3",
 	"publisher": "Danbh",
 	"author": "Danbh",
 	"repository": {
@@ -35,6 +35,8 @@
 		"ruby",
 		"c#",
 		"dart",
+		"latex",
+		"tex",
 		"runner",
 		"code runner",
 		"terminal",
@@ -56,7 +58,8 @@
 		"onLanguage:php",
 		"onLanguage:ruby",
 		"onLanguage:csharp",
-		"onLanguage:dart"
+		"onLanguage:dart",
+		"onLanguage:latex"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -103,6 +106,9 @@
 			},
 			{
 				"id": "dart"
+			},
+			{
+				"id": "latex"
 			}
 		],
 		"keybindings": [
@@ -110,7 +116,7 @@
 				"command": "coderunner.runFile",
 				"key": "ctrl+cmd+r",
 				"mac": "ctrl+cmd+r",
-				"when": "editorTextFocus && (resourceExtname == '.py' || resourceExtname == '.java' || resourceExtname == '.c' || resourceExtname == '.cpp' || resourceExtname == '.js' || resourceExtname == '.ts' || resourceExtname == '.go' || resourceExtname == '.rs' || resourceExtname == '.php' || resourceExtname == '.rb' || resourceExtname == '.cs' || resourceExtname == '.dart')"
+				"when": "editorTextFocus && (resourceExtname == '.py' || resourceExtname == '.java' || resourceExtname == '.c' || resourceExtname == '.cpp' || resourceExtname == '.js' || resourceExtname == '.ts' || resourceExtname == '.go' || resourceExtname == '.rs' || resourceExtname == '.php' || resourceExtname == '.rb' || resourceExtname == '.cs' || resourceExtname == '.dart' || resourceExtname == '.tex')"
 			}
 		]
 	},

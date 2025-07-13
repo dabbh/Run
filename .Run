@@ -1,0 +1,43 @@
+# קובץ הגדרות הרצה מותאמות אישית
+# ניתן להגדיר הגדרות שונות לכל שפת תכנות
+
+[c]
+compileFlags: -Wall -Wextra -g -std=c99
+runCommand: ./{filename}
+
+[cpp]
+compileFlags: -Wall -Wextra -std=c++17 -O2
+runCommand: ./{filename}
+
+[python]
+fullCommand: python3 {filenameWithExt} --verbose
+
+[java]
+compileFlags: -cp .
+runCommand: java {filename}
+
+[javascript]
+fullCommand: node {filenameWithExt} --inspect
+
+[typescript]
+fullCommand: npx ts-node {filenameWithExt} --transpile-only
+
+[go]
+fullCommand: go run {filenameWithExt} -race
+
+[rust]
+compileFlags: --release
+runCommand: ./{filename}
+
+[php]
+fullCommand: php {filenameWithExt} -d display_errors=on
+
+[ruby]
+fullCommand: ruby {filenameWithExt} --verbose
+
+# דוגמא לשפה עם הגדרות מורכבות יותר
+[dart]
+fullCommand: dart run {filenameWithExt} --enable-asserts
+
+[latex]
+fullCommand: pdflatex {filenameWithExt} && xdg-open {filename}.pdf
