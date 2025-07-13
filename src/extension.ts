@@ -212,7 +212,9 @@ async function runCurrentFile() {
 	// Create and show terminal
 	const terminal = vscode.window.createTerminal({
 		name: `Run ${getLanguageDisplayName(languageId)}`,
-		cwd: cwd
+		cwd: cwd,
+		iconPath: new vscode.ThemeIcon('play'),
+		color: new vscode.ThemeColor('terminal.ansiGreen')
 	});
 
 	terminal.show();
