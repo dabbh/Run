@@ -78,7 +78,7 @@ function getLanguageDisplayName(languageId: string): string {
 	return displayNames[languageId] || languageId;
 }
 
-async function getCustomRunConfig(filePath: string, languageId?: string): Promise<{ compileFlags?: string; runCommand?: string; fullCommand?: string }> {
+async function getCustomRunConfig(filePath: string, languageId?: string): Promise<{ compileFlags?: string; runCommand?: string; fullCommand?: string; safeMode?: boolean }> {
 	const folderPath = path.dirname(filePath);
 	const runFilePath = path.join(folderPath, '.Run');
 	const vscodeSettingsPath = path.join(folderPath, '.vscode', 'settings.json');
@@ -166,7 +166,7 @@ async function getCOptions(filePath: string): Promise<{ compileFlags: string; ru
 	}
 
 	// Use default options without prompting the user
-	const compileFlags = "-Wall -Wextra";
+	const compileFlags = "";
 	const runCommand = `./${path.basename(filePath, path.extname(filePath))}`;
 
 	const options = { compileFlags, runCommand };
@@ -234,7 +234,15 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 	if (languageId === 'c') {
 		try {
 			const { compileFlags, runCommand } = await getCOptions(filePath);
-			return `gcc ${compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${runCommand}`;
+			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			
+			if (safeMode) {
+				const timestamp = Date.now();
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
+				return `gcc ${compileFlags} "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+			} else {
+				return `gcc ${compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${runCommand}`;
+			}
 		} catch (err) {
 			vscode.window.showErrorMessage(String(err));
 			return null;
@@ -243,9 +251,17 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 
 	// Check for custom compile flags and run command for C++
 	if (languageId === 'cpp') {
+		const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+		
 		if (customConfig.compileFlags && customConfig.runCommand) {
 			console.log(`Using custom C++ config: ${customConfig.compileFlags}, ${customConfig.runCommand}`);
-			return `g++ ${customConfig.compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${customConfig.runCommand}`;
+			if (safeMode) {
+				const timestamp = Date.now();
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
+				return `g++ ${customConfig.compileFlags} "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+			} else {
+				return `g++ ${customConfig.compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${customConfig.runCommand}`;
+			}
 		}
 	}
 
@@ -254,16 +270,32 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 			return `python3 "${fileName}"`;
 		case 'java':
 			return `javac *.java && java ${fileNameWithoutExt}`;
-		case 'cpp':
-			return `g++ "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+		case 'cpp': {
+			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			if (safeMode) {
+				const timestamp = Date.now();
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
+				return `g++ "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+			} else {
+				return `g++ "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+			}
+		}
 		case 'javascript':
 			return `node "${fileName}"`;
 		case 'typescript':
 			return `npx ts-node "${fileName}"`;
 		case 'go':
 			return `go run "${fileName}"`;
-		case 'rust':
-			return `rustc "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+		case 'rust': {
+			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			if (safeMode) {
+				const timestamp = Date.now();
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
+				return `rustc "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+			} else {
+				return `rustc "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+			}
+		}
 		case 'php':
 			return `php "${fileName}"`;
 		case 'ruby':
@@ -279,7 +311,7 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 	}
 }
 
-function parseRunFileWithSections(content: string, languageId?: string): { compileFlags?: string; runCommand?: string; fullCommand?: string } | null {
+function parseRunFileWithSections(content: string, languageId?: string): { compileFlags?: string; runCommand?: string; fullCommand?: string; safeMode?: boolean } | null {
 	if (!languageId) {
 		return null;
 	}
@@ -287,7 +319,7 @@ function parseRunFileWithSections(content: string, languageId?: string): { compi
 	const lines = content.split('\n');
 	let currentSection = '';
 	let inTargetSection = false;
-	const config: { compileFlags?: string; runCommand?: string; fullCommand?: string } = {};
+	const config: { compileFlags?: string; runCommand?: string; fullCommand?: string; safeMode?: boolean } = {};
 
 	for (const line of lines) {
 		const trimmedLine = line.trim();
@@ -318,6 +350,8 @@ function parseRunFileWithSections(content: string, languageId?: string): { compi
 					config.runCommand = value;
 				} else if (key === 'fullCommand') {
 					config.fullCommand = value;
+				} else if (key === 'safeMode') {
+					config.safeMode = value.toLowerCase() === 'true' || value === '1';
 				}
 			}
 		}

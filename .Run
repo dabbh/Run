@@ -1,33 +1,44 @@
 # קובץ הגדרות הרצה מותאמות אישית
 # ניתן להגדיר הגדרות שונות לכל שפת תכנות
+# safeMode: true (ברירת מחדל) - יוצר קובץ זמני כדי לא לדרוס קבצים קיימים
+# safeMode: false - מצב רגיל (עלול לדרוס קבצים קיימים)
 
 [c]
 compileFlags: -Wall -Wextra -g -std=c99
 runCommand: ./{filename}
+# safeMode: true (ברירת מחדל - לא נדרש לציין)
+# כדי לקמפל בלי flags נוספים, אל תגדיר compileFlags או השתמש ב: compileFlags:
 
 [cpp]
 compileFlags: -Wall -Wextra -std=c++17 -O2
 runCommand: ./{filename}
-
-[python]
-fullCommand: python3 {filenameWithExt} --verbose
-
-[java]
-compileFlags: -cp .
-runCommand: java {filename}
-
-[javascript]
-fullCommand: node {filenameWithExt} --inspect
-
-[typescript]
-fullCommand: npx ts-node {filenameWithExt} --transpile-only
-
-[go]
-fullCommand: go run {filenameWithExt} -race
+# safeMode: true (ברירת מחדל - לא נדרש לציין)
 
 [rust]
 compileFlags: --release
 runCommand: ./{filename}
+safeMode: false  # מצב רגיל - דורס קבצים קיימים
+
+[python]
+fullCommand: python3 {filenameWithExt} --verbose
+# Python doesn't need safeMode (interpreted language)
+
+[java]
+compileFlags: -cp .
+runCommand: java {filename}
+# Java doesn't need safeMode (no executable files created)
+
+[javascript]
+fullCommand: node {filenameWithExt} --inspect
+# JavaScript doesn't need safeMode (interpreted language)
+
+[typescript]
+fullCommand: npx ts-node {filenameWithExt} --transpile-only
+# TypeScript compiled to memory, no files created
+
+[go]
+fullCommand: go run {filenameWithExt} -race
+# Go can compile to temp, but go run handles it automatically
 
 [php]
 fullCommand: php {filenameWithExt} -d display_errors=on
@@ -41,3 +52,4 @@ fullCommand: dart run {filenameWithExt} --enable-asserts
 
 [latex]
 fullCommand: pdflatex {filenameWithExt} && xdg-open {filename}.pdf
+# LaTeX creates multiple files, but they're usually wanted

@@ -6,6 +6,13 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"type": "java",
+			"name": "j",
+			"request": "launch",
+			"mainClass": "j",
+			"projectName": "Run_a86c5c86"
+		},
+		{
 			"name": "Run Extension",
 			"type": "extensionHost",
 			"request": "launch",

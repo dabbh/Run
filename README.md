@@ -55,7 +55,7 @@ Search for "Run!" by Danbh in the VS Code Extensions Marketplace
 |----------|----------------|--------------|--------------|
 | **Python** | `.py` | `python3 "filename.py"` | Python 3.x |
 | **Java** | `.java` | `javac *.java && java classname` | JDK |
-| **C** | `.c` | `gcc -Wall -Wextra "filename.c" -o output && ./output` | GCC |
+| **C** | `.c` | `gcc "filename.c" -o output && ./output` | GCC |
 | **C++** | `.cpp` | `g++ "filename.cpp" -o output && ./output` | G++ |
 | **JavaScript** | `.js` | `node "filename.js"` | Node.js |
 | **TypeScript** | `.ts` | `npx ts-node "filename.ts"` | Node.js + ts-node |
@@ -187,15 +187,23 @@ Create a `.Run` file in your project directory to customize execution commands f
 ```ini
 # Custom run configurations
 [c]
-compileFlags: -Wall -Wextra -g -std=c99
+compileFlags: -Wall -Wextra -g -std=c99  # Optional: add debugging and warnings
 runCommand: ./{filename}
+# safeMode: true by default (creates temporary executables)
+# For simple compilation without extra flags, omit compileFlags or use: compileFlags:
 
 [cpp]
 compileFlags: -Wall -Wextra -std=c++17 -O2
 runCommand: ./{filename}
+# safeMode: true by default
 
 [python]
 fullCommand: python3 {filenameWithExt} --verbose
+
+[rust]
+compileFlags: --release
+runCommand: ./{filename}
+safeMode: false  # Explicitly disable safe mode for this project
 
 [latex]
 fullCommand: pdflatex {filenameWithExt} && bibtex {filename} && pdflatex {filenameWithExt} && xdg-open {filename}.pdf
@@ -209,6 +217,33 @@ fullCommand: pdflatex {filenameWithExt} && bibtex {filename} && pdflatex {filena
 - **`compileFlags`** - Custom compilation flags (for compiled languages)
 - **`runCommand`** - Custom run command (used with compileFlags)
 - **`fullCommand`** - Complete custom command (overrides default behavior)
+- **`safeMode`** - For compiled languages (C, C++, Rust): Creates temporary executable files to avoid overwriting existing files
+  - **Default: `true`** - Creates executable with timestamp suffix and deletes it after running (recommended)
+  - `safeMode: false` - Uses standard executable names (may overwrite existing files)
+  - If not specified in `.Run` file, defaults to `true` for safety
+
+### Safe Mode Examples
+```ini
+[c]
+# Simple compilation (default behavior)
+runCommand: ./{filename}
+# safeMode: true by default (no need to specify)
+
+[c]
+# Advanced compilation with debugging and warnings
+compileFlags: -Wall -Wextra -g -std=c99
+runCommand: ./{filename}
+
+[cpp]
+compileFlags: -std=c++17 -O2
+runCommand: ./{filename}
+safeMode: false  # Explicitly disable safe mode
+
+[rust]
+compileFlags: --release
+runCommand: ./{filename}
+# Uses safe mode by default
+```
 
 ### Supported in .Run files
 All supported languages can be customized: `[c]`, `[cpp]`, `[python]`, `[java]`, `[javascript]`, `[typescript]`, `[go]`, `[rust]`, `[php]`, `[ruby]`, `[csharp]`, `[dart]`, `[latex]`
