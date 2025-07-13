@@ -2,7 +2,7 @@
 	"name": "run-a-code",
 	"displayName": "Run!",
 	"description": "Run any code instantly from your editor. One click. Any language. Minimal setup.",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"publisher": "Danbh",
 	"author": "Danbh",
 	"repository": {

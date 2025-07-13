@@ -6,6 +6,7 @@
 [c]
 compileFlags: -Wall -Wextra -g -std=c99
 runCommand: ./{filename}
+fullCommand: gcc {filenameWithExt} -o {filename} && ./{filename}
 # safeMode: true (ברירת מחדל - לא נדרש לציין)
 # כדי לקמפל בלי flags נוספים, אל תגדיר compileFlags או השתמש ב: compileFlags:
 

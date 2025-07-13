@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 let statusBarItem: vscode.StatusBarItem;
 const compilationOptions: Map<string, { compileFlags: string; runCommand: string }> = new Map();
@@ -167,7 +168,9 @@ async function getCOptions(filePath: string): Promise<{ compileFlags: string; ru
 
 	// Use default options without prompting the user
 	const compileFlags = "";
-	const runCommand = `./${path.basename(filePath, path.extname(filePath))}`;
+	const execExt = getExecutableExtension();
+	const executableName = `${path.basename(filePath, path.extname(filePath))}${execExt}`;
+	const runCommand = isWindows() ? executableName : `./${executableName}`;
 
 	const options = { compileFlags, runCommand };
 	compilationOptions.set(filePath, options);
@@ -237,13 +240,20 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 		try {
 			const { compileFlags, runCommand } = await getCOptions(filePath);
 			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			const execExt = getExecutableExtension();
 			
 			if (safeMode) {
 				const timestamp = Date.now();
-				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
-				return `gcc ${compileFlags} "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}${execExt}`;
+				const runCmd = isWindows() ? safeExecutableName : `./${safeExecutableName}`;
+				const compileCmd = `gcc ${compileFlags} "${fileName}" -o ${safeExecutableName}`;
+				const cleanupCmd = isWindows() ? `del ${safeExecutableName}` : `rm ${safeExecutableName}`;
+				return buildCommand(compileCmd, runCmd, cleanupCmd);
 			} else {
-				return `gcc ${compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${runCommand}`;
+				const executableName = `${fileNameWithoutExt}${execExt}`;
+				const runCmd = isWindows() ? executableName : runCommand;
+				const compileCmd = `gcc ${compileFlags} "${fileName}" -o ${executableName}`;
+				return buildCommand(compileCmd, runCmd);
 			}
 		} catch (err) {
 			vscode.window.showErrorMessage(String(err));
@@ -254,32 +264,47 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 	// Check for custom compile flags and run command for C++
 	if (languageId === 'cpp') {
 		const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+		const execExt = getExecutableExtension();
 		
 		if (customConfig.compileFlags && customConfig.runCommand) {
 			console.log(`Using custom C++ config: ${customConfig.compileFlags}, ${customConfig.runCommand}`);
 			if (safeMode) {
 				const timestamp = Date.now();
-				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
-				return `g++ ${customConfig.compileFlags} "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}${execExt}`;
+				const runCmd = isWindows() ? safeExecutableName : `./${safeExecutableName}`;
+				const compileCmd = `g++ ${customConfig.compileFlags} "${fileName}" -o ${safeExecutableName}`;
+				const cleanupCmd = isWindows() ? `del ${safeExecutableName}` : `rm ${safeExecutableName}`;
+				return buildCommand(compileCmd, runCmd, cleanupCmd);
 			} else {
-				return `g++ ${customConfig.compileFlags} "${fileName}" -o ${fileNameWithoutExt} && ${customConfig.runCommand}`;
+				const executableName = `${fileNameWithoutExt}${execExt}`;
+				const runCmd = isWindows() ? executableName : customConfig.runCommand;
+				const compileCmd = `g++ ${customConfig.compileFlags} "${fileName}" -o ${executableName}`;
+				return buildCommand(compileCmd, runCmd);
 			}
 		}
 	}
 
 	switch (languageId) {
 		case 'python':
-			return `python3 "${fileName}"`;
+			const pythonCmd = isWindows() ? 'python' : 'python3';
+			return `${pythonCmd} "${fileName}"`;
 		case 'java':
 			return `javac *.java && java ${fileNameWithoutExt}`;
 		case 'cpp': {
 			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			const execExt = getExecutableExtension();
 			if (safeMode) {
 				const timestamp = Date.now();
-				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
-				return `g++ "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}${execExt}`;
+				const runCmd = isWindows() ? safeExecutableName : `./${safeExecutableName}`;
+				const compileCmd = `g++ "${fileName}" -o ${safeExecutableName}`;
+				const cleanupCmd = isWindows() ? `del ${safeExecutableName}` : `rm ${safeExecutableName}`;
+				return buildCommand(compileCmd, runCmd, cleanupCmd);
 			} else {
-				return `g++ "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+				const executableName = `${fileNameWithoutExt}${execExt}`;
+				const runCmd = isWindows() ? executableName : `./${executableName}`;
+				const compileCmd = `g++ "${fileName}" -o ${executableName}`;
+				return buildCommand(compileCmd, runCmd);
 			}
 		}
 		case 'javascript':
@@ -290,12 +315,19 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 			return `go run "${fileName}"`;
 		case 'rust': {
 			const safeMode = customConfig.safeMode !== undefined ? customConfig.safeMode : true;
+			const execExt = getExecutableExtension();
 			if (safeMode) {
 				const timestamp = Date.now();
-				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}`;
-				return `rustc "${fileName}" -o ${safeExecutableName} && ./${safeExecutableName} && rm ${safeExecutableName}`;
+				const safeExecutableName = `${fileNameWithoutExt}_temp_${timestamp}${execExt}`;
+				const runCmd = isWindows() ? safeExecutableName : `./${safeExecutableName}`;
+				const compileCmd = `rustc "${fileName}" -o ${safeExecutableName}`;
+				const cleanupCmd = isWindows() ? `del ${safeExecutableName}` : `rm ${safeExecutableName}`;
+				return buildCommand(compileCmd, runCmd, cleanupCmd);
 			} else {
-				return `rustc "${fileName}" -o ${fileNameWithoutExt} && ./${fileNameWithoutExt}`;
+				const executableName = `${fileNameWithoutExt}${execExt}`;
+				const runCmd = isWindows() ? executableName : `./${executableName}`;
+				const compileCmd = `rustc "${fileName}" -o ${executableName}`;
+				return buildCommand(compileCmd, runCmd);
 			}
 		}
 		case 'php':
@@ -307,7 +339,10 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 		case 'dart':
 			return `dart run "${fileName}"`;
 		case 'latex':
-			return `pdflatex "${fileName}" && xdg-open ${fileNameWithoutExt}.pdf`;
+			const openCmd = getOpenCommand();
+			const compileCmd = `pdflatex "${fileName}"`;
+			const openPdfCmd = `${openCmd} ${fileNameWithoutExt}.pdf`;
+			return buildCommand(compileCmd, openPdfCmd);
 		default:
 			return null;
 	}
@@ -361,6 +396,51 @@ function parseRunFileWithSections(content: string, languageId?: string): { compi
 
 	// Return config if we found any values, otherwise null
 	return Object.keys(config).length > 0 ? config : null;
+}
+
+// Helper functions for cross-platform compatibility
+function isWindows(): boolean {
+	return os.platform() === 'win32';
+}
+
+function getExecutableExtension(): string {
+	return isWindows() ? '.exe' : '';
+}
+
+function getOpenCommand(): string {
+	if (isWindows()) {
+		return 'start';
+	} else if (os.platform() === 'darwin') {
+		return 'open';
+	} else {
+		return 'xdg-open';
+	}
+}
+
+function formatCommand(command: string): string {
+	// On Windows, replace && with proper PowerShell syntax
+	if (isWindows()) {
+		return command;
+	}
+	return command;
+}
+
+function buildCommand(compileCmd: string, runCmd: string, cleanupCmd?: string): string {
+	if (isWindows()) {
+		// Windows PowerShell syntax
+		if (cleanupCmd) {
+			return `${compileCmd}; if ($?) { ${runCmd}; ${cleanupCmd} }`;
+		} else {
+			return `${compileCmd}; if ($?) { ${runCmd} }`;
+		}
+	} else {
+		// Linux/macOS bash syntax
+		if (cleanupCmd) {
+			return `${compileCmd} && ${runCmd} && ${cleanupCmd}`;
+		} else {
+			return `${compileCmd} && ${runCmd}`;
+		}
+	}
 }
 
 // This method is called when your extension is deactivated

@@ -53,9 +53,9 @@ Search for "Run!" by Danbh in the VS Code Extensions Marketplace
 
 | Language | File Extension | Command Used | Requirements |
 |----------|----------------|--------------|--------------|
-| **Python** | `.py` | `python3 "filename.py"` | Python 3.x |
+| **Python** | `.py` | `python3 "filename.py"` (Linux/macOS)<br>`python "filename.py"` (Windows) | Python 3.x |
 | **Java** | `.java` | `javac *.java && java classname` | JDK |
-| **C** | `.c` | `gcc "filename.c" -o output && ./output` | GCC |
+| **C** | `.c` | `gcc "filename.c" -o output && ./output` (Linux/macOS)<br>`gcc "filename.c" -o output.exe && output.exe` (Windows) | GCC |
 | **C++** | `.cpp` | `g++ "filename.cpp" -o output && ./output` | G++ |
 | **JavaScript** | `.js` | `node "filename.js"` | Node.js |
 | **TypeScript** | `.ts` | `npx ts-node "filename.ts"` | Node.js + ts-node |
@@ -65,7 +65,15 @@ Search for "Run!" by Danbh in the VS Code Extensions Marketplace
 | **Ruby** | `.rb` | `ruby "filename.rb"` | Ruby |
 | **C#** | `.cs` | `dotnet run` | .NET SDK |
 | **Dart** | `.dart` | `dart run "filename.dart"` | Dart SDK |
-| **LaTeX** | `.tex` | `pdflatex "filename.tex" && xdg-open output.pdf` | LaTeX distribution |
+| **LaTeX** | `.tex` | `pdflatex "filename.tex" && xdg-open output.pdf` (Linux)<br>`pdflatex "filename.tex" && open output.pdf` (macOS)<br>`pdflatex "filename.tex" && start output.pdf` (Windows) | LaTeX distribution |
+
+## 🌟 Cross-Platform Support
+
+**Run!** automatically detects your operating system and uses the appropriate commands:
+
+- **🐧 Linux**: Uses `python3`, `xdg-open`, no `.exe` files for compiled languages
+- **🍎 macOS**: Uses `python3`, `open`, no `.exe` files for compiled languages  
+- **🪟 Windows**: Uses `python`, `start`, creates `.exe` files for compiled languages
 
 ## 📋 Requirements
 
