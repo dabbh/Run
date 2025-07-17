@@ -25,6 +25,26 @@ export function activate(context: vscode.ExtensionContext) {
 		runCurrentFile();
 	});
 
+	// Register the create .Run file command
+	const createRunFileCommand = vscode.commands.registerCommand('coderunner.createRunFile', () => {
+		createRunFile();
+	});
+
+	// Register the open .Run file command
+	const openRunFileCommand = vscode.commands.registerCommand('coderunner.openRunFile', () => {
+		openRunFile();
+	});
+
+	// Register the create global .Run file command
+	const createGlobalRunFileCommand = vscode.commands.registerCommand('coderunner.createGlobalRunFile', () => {
+		createGlobalRunFile();
+	});
+
+	// Register the edit global .Run file command
+	const editGlobalRunFileCommand = vscode.commands.registerCommand('coderunner.editGlobalRunFile', () => {
+		editGlobalRunFile();
+	});
+
 	// Register event listener for active editor changes
 	const activeEditorChange = vscode.window.onDidChangeActiveTextEditor(() => {
 		updateStatusBarItem();
@@ -35,7 +55,17 @@ export function activate(context: vscode.ExtensionContext) {
 		updateStatusBarItem();
 	});
 
-	context.subscriptions.push(runCommand, activeEditorChange, documentChange);
+	// Register completion provider for .Run files
+	const runFileCompletionProvider = vscode.languages.registerCompletionItemProvider(
+		[
+			{ scheme: 'file', pattern: '**/.Run' },
+			{ scheme: 'file', pattern: '**/global.Run' }
+		],
+		new RunFileCompletionProvider(),
+		'{', '[', 'f', 'c', 'r', 's' // Trigger characters for different completions
+	);
+
+	context.subscriptions.push(runCommand, createRunFileCommand, openRunFileCommand, createGlobalRunFileCommand, editGlobalRunFileCommand, activeEditorChange, documentChange, runFileCompletionProvider);
 
 	// Initial update
 	updateStatusBarItem();
@@ -87,49 +117,35 @@ async function getCustomRunConfig(filePath: string, languageId?: string): Promis
 	console.log(`Looking for .Run file at: ${runFilePath}`);
 	console.log(`Looking for .vscode/settings.json at: ${vscodeSettingsPath}`);
 
+	// First try to find local .Run file
 	if (fs.existsSync(runFilePath)) {
 		console.log(`.Run file exists at: ${runFilePath}`);
-		try {
-			const content = fs.readFileSync(runFilePath, 'utf-8');
-			console.log(`.Run file content: ${content}`);
-			
-			// Try to parse as INI-style format first (with sections like [c], [cpp], etc.)
-			let config = parseRunFileWithSections(content, languageId);
-			
-			// If no language-specific config found, try JSON format
-			if (!config && content.trim().startsWith('{')) {
-				config = JSON.parse(content);
-			}
-
-			if (config) {
-				// Replace {filename} and {filenameWithExt} placeholders with the actual file names
-				const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
-				const fileNameWithExt = path.basename(filePath);
-
-				const replacePlaceholders = (str: string) =>
-					str.replaceAll('{filename}', fileNameWithoutExt)
-					   .replaceAll('{filenameWithExt}', fileNameWithExt);
-
-				if (config.runCommand) {
-					config.runCommand = replacePlaceholders(config.runCommand);
-				}
-				if (config.fullCommand) {
-					config.fullCommand = replacePlaceholders(config.fullCommand);
-				}
-				if (config.compileFlags) {
-					config.compileFlags = replacePlaceholders(config.compileFlags);
-				}
-
-				return config;
-			}
-		} catch (err) {
-			vscode.window.showErrorMessage(`Failed to parse .Run file: ${err}`);
-			console.error(`Error parsing .Run file: ${err}`);
+		const config = await parseRunFileAtPath(runFilePath, languageId, filePath);
+		if (config) {
+			return config;
 		}
 	} else {
 		console.log(`.Run file does not exist at: ${runFilePath}`);
 	}
 
+	// If no local .Run file found, try global .Run file
+	const globalRunFilePath = await getGlobalRunFilePath();
+	console.log(`Global .Run file path: ${globalRunFilePath}`);
+	
+	if (globalRunFilePath && fs.existsSync(globalRunFilePath)) {
+		console.log(`Global .Run file exists at: ${globalRunFilePath}`);
+		const config = await parseRunFileAtPath(globalRunFilePath, languageId, filePath);
+		if (config) {
+			console.log(`Using global .Run file configuration:`, config);
+			return config;
+		} else {
+			console.log(`Global .Run file exists but no config found for language: ${languageId}`);
+		}
+	} else {
+		console.log(`Global .Run file does not exist at: ${globalRunFilePath}`);
+	}
+
+	// Try .vscode/settings.json as fallback
 	if (fs.existsSync(vscodeSettingsPath)) {
 		console.log(`.vscode/settings.json exists at: ${vscodeSettingsPath}`);
 		try {
@@ -376,7 +392,8 @@ function parseRunFileWithSections(content: string, languageId?: string): { compi
 
 		// If we're in the target section, parse key-value pairs
 		if (inTargetSection) {
-			const keyValueMatch = trimmedLine.match(/^([^:]+):\s*(.+)$/);
+			// Support both : and = separators
+			const keyValueMatch = trimmedLine.match(/^([^:=]+)[:=]\s*(.+)$/);
 			if (keyValueMatch) {
 				const key = keyValueMatch[1].trim();
 				const value = keyValueMatch[2].trim();
@@ -388,6 +405,19 @@ function parseRunFileWithSections(content: string, languageId?: string): { compi
 				} else if (key === 'fullCommand') {
 					config.fullCommand = value;
 				} else if (key === 'safeMode') {
+					config.safeMode = value.toLowerCase() === 'true' || value === '1';
+				}
+			}
+		}
+		
+		// Handle [safe] section for global safeMode setting
+		if (currentSection === 'safe') {
+			const keyValueMatch = trimmedLine.match(/^([^:=]+)[:=]\s*(.+)$/);
+			if (keyValueMatch) {
+				const key = keyValueMatch[1].trim();
+				const value = keyValueMatch[2].trim();
+				
+				if (key === 'safeMode') {
 					config.safeMode = value.toLowerCase() === 'true' || value === '1';
 				}
 			}
@@ -443,9 +473,602 @@ function buildCommand(compileCmd: string, runCmd: string, cleanupCmd?: string): 
 	}
 }
 
+async function createRunFile() {
+	const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+	if (!workspaceFolder) {
+		vscode.window.showErrorMessage('No workspace folder found. Open a folder first.');
+		return;
+	}
+
+	// Show language selection quick pick
+	const languages = [
+		{ label: 'C', value: 'c' },
+		{ label: 'C++', value: 'cpp' },
+		{ label: 'Python', value: 'python' },
+		{ label: 'Java', value: 'java' },
+		{ label: 'JavaScript', value: 'javascript' },
+		{ label: 'TypeScript', value: 'typescript' },
+		{ label: 'Go', value: 'go' },
+		{ label: 'Rust', value: 'rust' },
+		{ label: 'PHP', value: 'php' },
+		{ label: 'Ruby', value: 'ruby' },
+		{ label: 'C#', value: 'csharp' },
+		{ label: 'Dart', value: 'dart' },
+		{ label: 'LaTeX', value: 'latex' },
+		{ label: 'All Languages (Complete Template)', value: 'all' }
+	];
+
+	const selectedLanguages = await vscode.window.showQuickPick(languages, {
+		placeHolder: 'Select languages to include in .Run file',
+		canPickMany: true,
+		title: 'Create .Run Configuration File'
+	});
+
+	if (!selectedLanguages || selectedLanguages.length === 0) {
+		return;
+	}
+
+	// Generate .Run file content
+	let content = '# Custom run configurations\n';
+	content += '# Created by Run! extension\n';
+	content += '# safeMode: true (default) - Creates temporary executables to avoid file conflicts\n';
+	content += '# safeMode: false - Uses standard executable names (may overwrite existing files)\n\n';
+
+	// Check if "All Languages" was selected
+	const includeAll = selectedLanguages.some(lang => lang.value === 'all');
+	const languagesToInclude = includeAll ? 
+		languages.filter(lang => lang.value !== 'all') : 
+		selectedLanguages;
+
+	for (const lang of languagesToInclude) {
+		content += generateLanguageSection(lang.value);
+	}
+
+	// Write to .Run file
+	const runFilePath = path.join(workspaceFolder.uri.fsPath, '.Run');
+	
+	try {
+		// Check if file already exists
+		if (fs.existsSync(runFilePath)) {
+			const overwrite = await vscode.window.showWarningMessage(
+				'.Run file already exists. Do you want to overwrite it?',
+				'Overwrite',
+				'Cancel'
+			);
+			if (overwrite !== 'Overwrite') {
+				return;
+			}
+		}
+
+		fs.writeFileSync(runFilePath, content, 'utf-8');
+		
+		// Open the created file
+		const document = await vscode.workspace.openTextDocument(runFilePath);
+		await vscode.window.showTextDocument(document);
+		
+		vscode.window.showInformationMessage('✅ .Run file created successfully!');
+	} catch (error) {
+		vscode.window.showErrorMessage(`Failed to create .Run file: ${error}`);
+	}
+}
+
+function generateLanguageSection(language: string): string {
+	const templates: { [key: string]: string } = {
+		c: `[c]
+compileFlags: -Wall -Wextra -g -std=c99
+runCommand: ./{filename}
+# safeMode: true (default - creates temporary executables)
+# For simple compilation without extra flags, omit compileFlags
+
+`,
+		cpp: `[cpp]
+compileFlags: -Wall -Wextra -std=c++17 -O2
+runCommand: ./{filename}
+# safeMode: true (default)
+
+`,
+		python: `[python]
+fullCommand: python3 {filenameWithExt}
+# Alternative: fullCommand: python3 {filenameWithExt} --verbose
+
+`,
+		java: `[java]
+compileFlags: -cp .
+runCommand: java {filename}
+# Java doesn't need safeMode (no executable files created)
+
+`,
+		javascript: `[javascript]
+fullCommand: node {filenameWithExt}
+# Alternative: fullCommand: node {filenameWithExt} --inspect
+
+`,
+		typescript: `[typescript]
+fullCommand: npx ts-node {filenameWithExt}
+# Alternative: fullCommand: npx ts-node {filenameWithExt} --transpile-only
+
+`,
+		go: `[go]
+fullCommand: go run {filenameWithExt}
+# Alternative: fullCommand: go run {filenameWithExt} -race
+
+`,
+		rust: `[rust]
+compileFlags: --release
+runCommand: ./{filename}
+safeMode: false  # Disable safe mode for this project
+
+`,
+		php: `[php]
+fullCommand: php {filenameWithExt}
+# Alternative: fullCommand: php {filenameWithExt} -d display_errors=on
+
+`,
+		ruby: `[ruby]
+fullCommand: ruby {filenameWithExt}
+# Alternative: fullCommand: ruby {filenameWithExt} --verbose
+
+`,
+		csharp: `[csharp]
+fullCommand: dotnet run
+# C# projects use dotnet run in the project directory
+
+`,
+		dart: `[dart]
+fullCommand: dart run {filenameWithExt}
+# Alternative: fullCommand: dart run {filenameWithExt} --enable-asserts
+
+`,
+		latex: `[latex]
+fullCommand: pdflatex {filenameWithExt} && xdg-open {filename}.pdf
+# For complex LaTeX projects with bibliography:
+# fullCommand: pdflatex {filenameWithExt} && bibtex {filename} && pdflatex {filenameWithExt} && xdg-open {filename}.pdf
+
+`
+	};
+
+	return templates[language] || `[${language}]
+# Add your custom configuration here
+
+`;
+}
+
+// Auto-completion provider for .Run files
+class RunFileCompletionProvider implements vscode.CompletionItemProvider {
+	provideCompletionItems(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken,
+		context: vscode.CompletionContext
+	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
+		const completionItems: vscode.CompletionItem[] = [];
+		const line = document.lineAt(position).text;
+		const linePrefix = line.substring(0, position.character);
+
+		// 1. Placeholder completions when typing inside {}
+		if (linePrefix.includes('{')) {
+			// Check if we're inside incomplete placeholder
+			const lastOpenBrace = linePrefix.lastIndexOf('{');
+			const lastCloseBrace = linePrefix.lastIndexOf('}');
+			
+			// We're inside a placeholder if the last { is after the last } (or no } exists)
+			if (lastOpenBrace > lastCloseBrace || lastCloseBrace === -1) {
+				const afterCursor = line.substring(position.character);
+				const hasClosingBrace = afterCursor.includes('}');
+				
+				// Get the current partial text inside the braces
+				const partialText = linePrefix.substring(lastOpenBrace + 1).toLowerCase();
+				
+				const placeholders = [
+					{ name: 'filename', detail: 'File name without extension', doc: 'Expands to the filename without its extension (e.g., "main" for "main.c")' },
+					{ name: 'filenameWithExt', detail: 'File name with extension', doc: 'Expands to the full filename with extension (e.g., "main.c")' }
+				];
+
+				placeholders.forEach(placeholder => {
+					// Show completion if placeholder name starts with the partial text
+					if (placeholder.name.toLowerCase().startsWith(partialText)) {
+						const completion = new vscode.CompletionItem(placeholder.name, vscode.CompletionItemKind.Variable);
+						completion.detail = placeholder.detail;
+						completion.documentation = placeholder.doc;
+						completion.insertText = hasClosingBrace ? placeholder.name : `${placeholder.name}}`;
+						
+						// Replace the partial text if it exists
+						if (partialText) {
+							completion.range = new vscode.Range(
+								position.line,
+								lastOpenBrace + 1,
+								position.line,
+								position.character
+							);
+						}
+						
+						completionItems.push(completion);
+					}
+				});
+
+				return completionItems;
+			}
+		}
+
+		// 2. Section completions when typing inside []
+		if (linePrefix.includes('[') && !linePrefix.includes(']')) {
+			const afterCursor = line.substring(position.character);
+			const hasClosingBracket = afterCursor.includes(']');
+			
+			const languages = ['c', 'cpp', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'php', 'ruby', 'csharp', 'dart', 'latex'];
+			languages.forEach(lang => {
+				const item = new vscode.CompletionItem(lang, vscode.CompletionItemKind.Module);
+				item.detail = `Configuration section for ${lang}`;
+				item.insertText = hasClosingBracket ? lang : `${lang}]`;
+				item.documentation = `Creates a configuration section for ${lang} language`;
+				completionItems.push(item);
+			});
+			return completionItems;
+		}
+
+		// 3. Property name completions (when typing property names)
+		const isAtLineStart = linePrefix.trim() === '' || linePrefix.match(/^\s*$/);
+		const isAfterSection = linePrefix.match(/^\s*\[.*\]\s*$/);
+		const currentLineEmpty = line.trim() === '';
+
+		// Language sections - only at beginning of line
+		if (isAtLineStart || currentLineEmpty) {
+			const languages = ['c', 'cpp', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'php', 'ruby', 'csharp', 'dart', 'latex'];
+			languages.forEach(lang => {
+				const item = new vscode.CompletionItem(`[${lang}]`, vscode.CompletionItemKind.Module);
+				item.detail = `Configuration section for ${lang}`;
+				item.insertText = `[${lang}]`;
+				completionItems.push(item);
+			});
+		}
+
+		// Configuration keys - when we're likely in a section
+		if (isAfterSection || (linePrefix.match(/^\s*$/) && !isAtLineStart)) {
+			const configKeys = [
+				{ key: 'compileFlags', detail: 'Compilation flags for compiled languages', example: ': -Wall -Wextra -g' },
+				{ key: 'runCommand', detail: 'Command to run the compiled executable', example: ': ./{filename}' },
+				{ key: 'fullCommand', detail: 'Complete custom command (overrides other settings)', example: ': gcc {filenameWithExt} -o {filename} && ./{filename}' },
+				{ key: 'safeMode', detail: 'Create temporary executables (true/false)', example: ': true' }
+			];
+
+			configKeys.forEach(({ key, detail, example }) => {
+				const item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Property);
+				item.detail = detail;
+				item.insertText = `${key}${example}`;
+				item.documentation = `Example: ${key}${example}`;
+				completionItems.push(item);
+			});
+		}
+
+		// 4. Word-based completions (when typing partial words)
+		const wordAtCursor = this.getWordAtPosition(document, position);
+		if (wordAtCursor) {
+			const word = wordAtCursor.toLowerCase();
+			
+			// Auto-complete property names
+			const propertyMatches = [
+				{ match: 'full', complete: 'fullCommand', detail: 'Complete custom command' },
+				{ match: 'comp', complete: 'compileFlags', detail: 'Compilation flags' },
+				{ match: 'run', complete: 'runCommand', detail: 'Run command' },
+				{ match: 'safe', complete: 'safeMode', detail: 'Safe mode setting' }
+			];
+
+			propertyMatches.forEach(({ match, complete, detail }) => {
+				if (complete.toLowerCase().startsWith(word)) {
+					const item = new vscode.CompletionItem(complete, vscode.CompletionItemKind.Property);
+					item.detail = detail;
+					item.insertText = `${complete}: `;
+					item.documentation = `Property: ${detail}`;
+					completionItems.push(item);
+				}
+			});
+
+			// Auto-complete section names
+			const languages = ['c', 'cpp', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'php', 'ruby', 'csharp', 'dart', 'latex'];
+			languages.forEach(lang => {
+				if (lang.toLowerCase().startsWith(word)) {
+					const item = new vscode.CompletionItem(`[${lang}]`, vscode.CompletionItemKind.Module);
+					item.detail = `Configuration section for ${lang}`;
+					item.insertText = `[${lang}]`;
+					completionItems.push(item);
+				}
+			});
+		}
+
+		return completionItems;
+	}
+
+	private getWordAtPosition(document: vscode.TextDocument, position: vscode.Position): string | undefined {
+		const range = document.getWordRangeAtPosition(position);
+		return range ? document.getText(range) : undefined;
+	}
+}
+
 // This method is called when your extension is deactivated
 export function deactivate() {
 	if (statusBarItem) {
 		statusBarItem.dispose();
+	}
+}
+
+async function getGlobalRunFilePath(): Promise<string | undefined> {
+	const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+	
+	// Always try user home directory first for truly global configuration
+	const homeDir = os.homedir();
+	const userVscodeDir = path.join(homeDir, '.vscode');
+	const userGlobalRunFile = path.join(userVscodeDir, 'global.Run');
+	
+	// Create user .vscode directory if it doesn't exist
+	try {
+		if (!fs.existsSync(userVscodeDir)) {
+			await fs.promises.mkdir(userVscodeDir, { recursive: true });
+		}
+	} catch (error) {
+		console.error('Error creating user .vscode directory:', error);
+	}
+	
+	// Check if user global file exists
+	if (fs.existsSync(userGlobalRunFile)) {
+		return userGlobalRunFile;
+	}
+	
+	// If we have a workspace, also check workspace .vscode folder as fallback
+	if (workspaceFolder) {
+		const vscodeDir = path.join(workspaceFolder.uri.fsPath, '.vscode');
+		const workspaceGlobalRunFile = path.join(vscodeDir, 'global.Run');
+		
+		try {
+			if (!fs.existsSync(vscodeDir)) {
+				await fs.promises.mkdir(vscodeDir, { recursive: true });
+			}
+		} catch (error) {
+			console.error('Error creating workspace .vscode directory:', error);
+		}
+		
+		if (fs.existsSync(workspaceGlobalRunFile)) {
+			return workspaceGlobalRunFile;
+		}
+	}
+	
+	// Return user global path for creation (even if it doesn't exist yet)
+	return userGlobalRunFile;
+}
+
+async function createGlobalRunFile() {
+	try {
+		const globalRunFilePath = await getGlobalRunFilePath();
+		if (!globalRunFilePath) {
+			vscode.window.showErrorMessage('Could not determine global .Run file location');
+			return;
+		}
+
+		if (fs.existsSync(globalRunFilePath)) {
+			const choice = await vscode.window.showInformationMessage(
+				'Global .Run file already exists. Do you want to open it?',
+				'Yes', 'No'
+			);
+			if (choice === 'Yes') {
+				const document = await vscode.workspace.openTextDocument(globalRunFilePath);
+				await vscode.window.showTextDocument(document);
+			}
+			return;
+		}
+
+		// Create the default content
+		const defaultContent = getDefaultRunFileContent();
+		
+		// Write to file
+		await fs.promises.writeFile(globalRunFilePath, defaultContent);
+		
+		// Open the file
+		const document = await vscode.workspace.openTextDocument(globalRunFilePath);
+		await vscode.window.showTextDocument(document);
+		
+		vscode.window.showInformationMessage('Global .Run file created successfully!');
+	} catch (error) {
+		vscode.window.showErrorMessage(`Error creating global .Run file: ${error}`);
+	}
+}
+
+async function editGlobalRunFile() {
+	try {
+		const globalRunFilePath = await getGlobalRunFilePath();
+		if (!globalRunFilePath) {
+			vscode.window.showErrorMessage('Could not determine global .Run file location');
+			return;
+		}
+
+		if (!fs.existsSync(globalRunFilePath)) {
+			const choice = await vscode.window.showInformationMessage(
+				'Global .Run file does not exist. Do you want to create it?',
+				'Yes', 'No'
+			);
+			if (choice === 'Yes') {
+				await createGlobalRunFile();
+			}
+			return;
+		}
+
+		// Open the file
+		const document = await vscode.workspace.openTextDocument(globalRunFilePath);
+		await vscode.window.showTextDocument(document);
+	} catch (error) {
+		vscode.window.showErrorMessage(`Error opening global .Run file: ${error}`);
+	}
+}
+
+function getDefaultRunFileContent(): string {
+	const isWindows = os.platform() === 'win32';
+	const isMac = os.platform() === 'darwin';
+	
+	// Platform-specific executable extension and PDF viewer
+	const exeExt = isWindows ? '.exe' : '';
+	const pdfViewer = isWindows ? 'start' : (isMac ? 'open' : 'xdg-open');
+	const pythonCmd = isWindows ? 'python' : 'python3';
+	
+	return `# .Run configuration file
+# This file defines custom build and run settings for the Run! extension
+# Cross-platform compatible - automatically detects your operating system
+# 
+# Place this file in:
+#   - Project root (.Run) for project-specific settings
+#   - User home/.vscode folder (global.Run) for user-wide settings
+#   - Workspace .vscode folder (global.Run) for workspace-wide settings
+
+[safe]
+# safeMode: true (default) - Creates temporary executables to avoid file conflicts
+# safeMode: false - Uses standard executable names (may overwrite existing files)
+safeMode = true
+
+# Example configuration for C language
+[c]
+compileFlags = -Wall -Wextra -g -std=c99
+runCommand = ./{filename}${exeExt}
+
+# Example configuration for C++ language
+[cpp]
+compileFlags = -Wall -Wextra -std=c++17 -O2
+runCommand = ./{filename}${exeExt}
+
+# Example configuration for Python
+[python]
+runCommand = ${pythonCmd} {filenameWithExt}
+
+# Example configuration for Java
+[java]
+compileFlags = -cp .
+runCommand = java {filename}
+
+# Example configuration for JavaScript
+[javascript]
+runCommand = node {filenameWithExt}
+
+# Example configuration for TypeScript
+[typescript]
+runCommand = ts-node {filenameWithExt}
+
+# Example configuration for Go
+[go]
+runCommand = go run {filenameWithExt}
+
+# Example configuration for Rust
+[rust]
+compileFlags = --edition=2021
+runCommand = ./{filename}${exeExt}
+
+# Example configuration for PHP
+[php]
+runCommand = php {filenameWithExt}
+
+# Example configuration for Ruby
+[ruby]
+runCommand = ruby {filenameWithExt}
+
+# Example configuration for C#
+[csharp]
+runCommand = dotnet run
+
+# Example configuration for Dart
+[dart]
+runCommand = dart {filenameWithExt}
+
+# Example configuration for LaTeX
+[latex]
+compileFlags = -interaction=nonstopmode
+runCommand = ${pdfViewer} {filename}.pdf
+
+# Platform-specific notes:
+# - Windows: Uses 'python' command, '.exe' extensions, 'start' for PDF
+# - macOS: Uses 'python3' command, no extensions, 'open' for PDF
+# - Linux: Uses 'python3' command, no extensions, 'xdg-open' for PDF
+
+# Add your custom configurations below
+`;
+}
+
+async function parseRunFileAtPath(runFilePath: string, languageId?: string, filePath?: string): Promise<{ compileFlags?: string; runCommand?: string; fullCommand?: string; safeMode?: boolean } | null> {
+	try {
+		const content = fs.readFileSync(runFilePath, 'utf-8');
+		console.log(`.Run file content: ${content}`);
+		
+		// Try to parse as INI-style format first (with sections like [c], [cpp], etc.)
+		let config = parseRunFileWithSections(content, languageId);
+		
+		// If no language-specific config found, try JSON format
+		if (!config && content.trim().startsWith('{')) {
+			config = JSON.parse(content);
+		}
+
+		if (config && filePath) {
+			// Replace {filename} and {filenameWithExt} placeholders with the actual file names
+			const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+			const fileNameWithExt = path.basename(filePath);
+
+			const replacePlaceholders = (str: string) =>
+				str.replaceAll('{filename}', fileNameWithoutExt)
+				   .replaceAll('{filenameWithExt}', fileNameWithExt);
+
+			if (config.runCommand) {
+				config.runCommand = replacePlaceholders(config.runCommand);
+			}
+			if (config.fullCommand) {
+				config.fullCommand = replacePlaceholders(config.fullCommand);
+			}
+			if (config.compileFlags) {
+				config.compileFlags = replacePlaceholders(config.compileFlags);
+			}
+		}
+
+		return config;
+	} catch (err) {
+		vscode.window.showErrorMessage(`Failed to parse .Run file: ${err}`);
+		console.error(`Error parsing .Run file: ${err}`);
+		return null;
+	}
+}
+
+async function openRunFile() {
+	try {
+		const activeEditor = vscode.window.activeTextEditor;
+		if (!activeEditor) {
+			vscode.window.showErrorMessage('No active file open');
+			return;
+		}
+
+		const currentFilePath = activeEditor.document.fileName;
+		const folderPath = path.dirname(currentFilePath);
+		const runFilePath = path.join(folderPath, '.Run');
+
+		// Check if local .Run file exists
+		if (fs.existsSync(runFilePath)) {
+			const document = await vscode.workspace.openTextDocument(runFilePath);
+			await vscode.window.showTextDocument(document);
+			return;
+		}
+
+		// If no local .Run file, check for global .Run file
+		const globalRunFilePath = await getGlobalRunFilePath();
+		if (globalRunFilePath && fs.existsSync(globalRunFilePath)) {
+			const document = await vscode.workspace.openTextDocument(globalRunFilePath);
+			await vscode.window.showTextDocument(document);
+			return;
+		}
+
+		// No .Run file found, ask user what to do
+		const choice = await vscode.window.showInformationMessage(
+			'No .Run file found. What would you like to do?',
+			'Create Local .Run File',
+			'Create Global .Run File',
+			'Cancel'
+		);
+
+		if (choice === 'Create Local .Run File') {
+			await createRunFile();
+		} else if (choice === 'Create Global .Run File') {
+			await createGlobalRunFile();
+		}
+	} catch (error) {
+		vscode.window.showErrorMessage(`Error opening .Run file: ${error}`);
 	}
 }

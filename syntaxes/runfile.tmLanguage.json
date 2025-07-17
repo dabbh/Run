@@ -1,0 +1,103 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Run Configuration",
+	"scopeName": "source.runfile",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#sections"
+		},
+		{
+			"include": "#keys"
+		},
+		{
+			"include": "#values"
+		},
+		{
+			"include": "#placeholders"
+		},
+		{
+			"include": "#booleans"
+		},
+		{
+			"include": "#strings"
+		}
+	],
+	"repository": {
+		"comments": {
+			"name": "comment.line.number-sign.runfile",
+			"match": "#.*$"
+		},
+		"sections": {
+			"name": "entity.name.section.runfile",
+			"match": "^\\s*\\[([^\\]]+)\\]\\s*$",
+			"captures": {
+				"1": {
+					"name": "support.class.runfile"
+				}
+			}
+		},
+		"keys": {
+			"name": "variable.other.runfile",
+			"match": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*[:=]",
+			"captures": {
+				"1": {
+					"name": "keyword.other.runfile"
+				}
+			}
+		},
+		"values": {
+			"name": "string.unquoted.runfile",
+			"begin": "[:=]\\s*",
+			"end": "$",
+			"patterns": [
+				{
+					"include": "#placeholders"
+				},
+				{
+					"include": "#booleans"
+				},
+				{
+					"match": "&&",
+					"name": "keyword.operator.logical.runfile"
+				},
+				{
+					"match": "\\|\\|",
+					"name": "keyword.operator.logical.runfile"
+				},
+				{
+					"match": "\\-[a-zA-Z0-9]+",
+					"name": "constant.other.option.runfile"
+				}
+			]
+		},
+		"placeholders": {
+			"name": "constant.other.placeholder.runfile",
+			"match": "\\{(filename|filenameWithExt)\\}",
+			"captures": {
+				"0": {
+					"name": "variable.other.placeholder.runfile"
+				},
+				"1": {
+					"name": "support.variable.runfile"
+				}
+			}
+		},
+		"booleans": {
+			"name": "constant.language.boolean.runfile",
+			"match": "\\b(true|false)\\b"
+		},
+		"strings": {
+			"name": "string.quoted.double.runfile",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#placeholders"
+				}
+			]
+		}
+	}
+}

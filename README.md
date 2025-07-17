@@ -189,7 +189,30 @@ Hello World!
 
 ## ⚙️ Custom Configuration with .Run Files
 
-Create a `.Run` file in your project directory to customize execution commands for different languages:
+Create a `.Run` file in your project directory to customize execution commands for different languages. The extension automatically configures VS Code to treat `.Run` files as INI files for proper syntax highlighting and editing support.
+
+### Configuration Priority
+The extension searches for .Run files in the following order:
+1. **Local .Run file** - In the same directory as your code file
+2. **User Global .Run file** - In user's home directory:
+   - **Windows**: `%USERPROFILE%\.vscode\global.Run`
+   - **macOS**: `~/.vscode/global.Run`
+   - **Linux**: `~/.vscode/global.Run`
+3. **Workspace Global .Run file** - In workspace `.vscode/global.Run` (fallback)
+4. **Built-in defaults** - Extension's default settings
+
+### Commands
+- **Create .Run File**: Create a project-specific configuration file
+- **Open .Run File**: Open existing .Run file (local or global)
+- **Create Global .Run File**: Create a user-wide configuration file in `~/.vscode/global.Run`
+- **Edit Global .Run File**: Edit the global configuration file
+
+### Cross-Platform Compatibility
+The extension automatically handles platform-specific differences:
+- **Executable extensions**: `.exe` on Windows, none on Unix systems
+- **PDF viewers**: `start` on Windows, `open` on macOS, `xdg-open` on Linux
+- **Command syntax**: PowerShell `if ($?)` on Windows, `&&` on Unix systems
+- **Path separators**: Automatically handled by VS Code
 
 ### Format
 ```ini
@@ -294,3 +317,19 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ---
 
 **Enjoy coding with Run! 🎉**
+
+## 🛠️ Quick .Run File Creation
+
+Create a `.Run` configuration file instantly:
+
+1. **Open Command Palette**: `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
+2. **Type**: `Create .Run File`
+3. **Select Languages**: Choose which programming languages to include
+4. **Generated**: A `.Run` file with templates for your selected languages
+
+### Features:
+- **🎯 Language Selection**: Pick specific languages or get a complete template
+- **📝 Ready-to-use Templates**: Pre-configured settings for each language
+- **🔄 Overwrite Protection**: Asks before overwriting existing files
+- **📂 Auto-open**: Opens the created file for immediate editing
+- **🎨 Syntax Highlighting**: Automatically configured as INI file for better editing experience

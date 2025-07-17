@@ -2,7 +2,7 @@
 	"name": "run-a-code",
 	"displayName": "Run!",
 	"description": "Run any code instantly from your editor. One click. Any language. Minimal setup.",
-	"version": "0.3.2",
+	"version": "0.5.0",
 	"publisher": "Danbh",
 	"author": "Danbh",
 	"repository": {
@@ -68,6 +68,26 @@
 				"command": "coderunner.runFile",
 				"title": "Run Code",
 				"icon": "$(play)"
+			},
+			{
+				"command": "coderunner.createRunFile",
+				"title": "Create .Run File",
+				"icon": "$(new-file)"
+			},
+			{
+				"command": "coderunner.openRunFile",
+				"title": "Open .Run File",
+				"icon": "$(go-to-file)"
+			},
+			{
+				"command": "coderunner.createGlobalRunFile",
+				"title": "Create Global .Run File",
+				"icon": "$(globe)"
+			},
+			{
+				"command": "coderunner.editGlobalRunFile",
+				"title": "Edit Global .Run File",
+				"icon": "$(edit)"
 			}
 		],
 		"languages": [
@@ -109,8 +129,41 @@
 			},
 			{
 				"id": "latex"
+			},
+			{
+				"id": "runfile",
+				"aliases": [
+					"Run Configuration",
+					"runfile"
+				],
+				"extensions": [
+					".Run"
+				],
+				"filenames": [
+					".Run",
+					"global.Run"
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
+		"grammars": [
+			{
+				"language": "runfile",
+				"scopeName": "source.runfile",
+				"path": "./syntaxes/runfile.tmLanguage.json"
+			}
+		],
+		"configurationDefaults": {
+			"[runfile]": {
+				"editor.quickSuggestions": {
+					"other": true,
+					"comments": false,
+					"strings": true
+				},
+				"editor.suggestOnTriggerCharacters": true,
+				"editor.wordBasedSuggestions": "off"
+			}
+		},
 		"keybindings": [
 			{
 				"command": "coderunner.runFile",
