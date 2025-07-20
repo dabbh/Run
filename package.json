@@ -2,14 +2,14 @@
 	"name": "run-a-code",
 	"displayName": "Run!",
 	"description": "Run any code instantly from your editor. One click. Any language. Minimal setup.",
-	"version": "0.5.0",
+	"version": "0.4.0",
 	"publisher": "Danbh",
 	"author": "Danbh",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/dabbh/Run"
 	},
-	"homepage": "https://github.com/dabbh/Run#readme",
+	"homepage": "https://dabbh.github.io/",
 	"bugs": {
 		"url": "https://github.com/dabbh/Run/issues"
 	},
@@ -66,28 +66,90 @@
 		"commands": [
 			{
 				"command": "coderunner.runFile",
-				"title": "Run Code",
+				"title": "Run!: Run Code",
 				"icon": "$(play)"
 			},
 			{
 				"command": "coderunner.createRunFile",
-				"title": "Create .Run File",
+				"title": "Run!: Create .Run File",
 				"icon": "$(new-file)"
 			},
 			{
 				"command": "coderunner.openRunFile",
-				"title": "Open .Run File",
+				"title": "Run!: Open .Run File",
 				"icon": "$(go-to-file)"
 			},
 			{
 				"command": "coderunner.createGlobalRunFile",
-				"title": "Create Global .Run File",
+				"title": "Run!: Create Global .Run File",
 				"icon": "$(globe)"
 			},
 			{
 				"command": "coderunner.editGlobalRunFile",
-				"title": "Edit Global .Run File",
+				"title": "Run!: Edit Global .Run File",
 				"icon": "$(edit)"
+			},
+			{
+				"command": "coderunner.showWalkthrough",
+				"title": "Run!: Getting Started Tutorial",
+				"icon": "$(mortar-board)"
+			}
+		],
+		"walkthroughs": [
+			{
+				"id": "run.gettingStarted",
+				"title": "Getting Started with Run!",
+				"description": "Learn how to run code instantly with Run! extension",
+				"steps": [
+					{
+						"id": "run.firstRun",
+						"title": "Run Your First Code",
+						"description": "Open any supported code file and click the Run button in the status bar to execute it instantly.\n[Open a code file](command:workbench.action.files.openFile)",
+						"media": {
+							"image": "icon.png",
+							"altText": "Run button in status bar"
+						},
+						"completionEvents": ["onCommand:coderunner.runFile"]
+					},
+					{
+						"id": "run.createRunFile",
+						"title": "Create Custom .Run Configuration",
+						"description": "Create a .Run file to customize compilation flags and run commands for your project.\n[Create .Run File](command:coderunner.createRunFile)",
+						"media": {
+							"image": "icon.png",
+							"altText": "Custom .Run configuration"
+						},
+						"completionEvents": ["onCommand:coderunner.createRunFile"]
+					},
+					{
+						"id": "run.globalSettings",
+						"title": "Set Up Global Configuration",
+						"description": "Create a global .Run file to apply settings across all your projects.\n[Create Global .Run File](command:coderunner.createGlobalRunFile)",
+						"media": {
+							"image": "icon.png",
+							"altText": "Global configuration"
+						},
+						"completionEvents": ["onCommand:coderunner.createGlobalRunFile"]
+					},
+					{
+						"id": "run.safeMode",
+						"title": "Understanding Safe Mode",
+						"description": "Run! uses safe mode by default to create temporary executables and avoid file conflicts. This keeps your workspace clean!",
+						"media": {
+							"image": "icon.png",
+							"altText": "Safe mode explanation"
+						}
+					},
+					{
+						"id": "run.multiLanguage",
+						"title": "Multi-Language Support",
+						"description": "Run! supports 13+ programming languages including C, C++, Python, Java, JavaScript, Go, Rust, and more. Each language has optimized default settings.",
+						"media": {
+							"image": "icon.png",
+							"altText": "Multiple programming languages"
+						}
+					}
+				]
 			}
 		],
 		"languages": [

@@ -1,5 +1,0 @@
-[c]
-compileFlags: -Wall -Wextra -g -std=c99
-runCommand: ./{filename}
-fullCommand: gcc {filenameWithExt} -o {filename} && ./{filename}
-safeMode: falsh

@@ -45,6 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
 		editGlobalRunFile();
 	});
 
+	// Register the show walkthrough command
+	const showWalkthroughCommand = vscode.commands.registerCommand('coderunner.showWalkthrough', () => {
+		vscode.commands.executeCommand('workbench.action.openWalkthrough', 'Danbh.run-a-code#run.gettingStarted');
+	});
+
 	// Register event listener for active editor changes
 	const activeEditorChange = vscode.window.onDidChangeActiveTextEditor(() => {
 		updateStatusBarItem();
@@ -65,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 		'{', '[', 'f', 'c', 'r', 's' // Trigger characters for different completions
 	);
 
-	context.subscriptions.push(runCommand, createRunFileCommand, openRunFileCommand, createGlobalRunFileCommand, editGlobalRunFileCommand, activeEditorChange, documentChange, runFileCompletionProvider);
+	context.subscriptions.push(runCommand, createRunFileCommand, openRunFileCommand, createGlobalRunFileCommand, editGlobalRunFileCommand, showWalkthroughCommand, activeEditorChange, documentChange, runFileCompletionProvider);
 
 	// Initial update
 	updateStatusBarItem();
@@ -228,6 +233,12 @@ async function runCurrentFile() {
 
 	console.log(`Generated command: ${command}`);
 
+	// Add mandatory cd command to ensure we're in the correct directory
+	const fileDirectory = path.dirname(filePath);
+	const finalCommand = buildCommandWithCd(command, fileDirectory);
+	
+	console.log(`Final command with cd: ${finalCommand}`);
+
 	// Create and show terminal
 	const terminal = vscode.window.createTerminal({
 		name: `Run ${getLanguageDisplayName(languageId)}`,
@@ -237,7 +248,7 @@ async function runCurrentFile() {
 	});
 
 	terminal.show();
-	terminal.sendText(command);
+	terminal.sendText(finalCommand);
 	vscode.window.showInformationMessage(`Running ${getLanguageDisplayName(languageId)} file...`);
 }
 
@@ -249,6 +260,7 @@ async function getRunCommand(languageId: string, filePath: string): Promise<stri
 	const customConfig = await getCustomRunConfig(filePath, languageId);
 	if (customConfig.fullCommand) {
 		console.log(`Using full custom command for ${languageId}: ${customConfig.fullCommand}`);
+		// Note: buildCommandWithCd will be applied later in runCurrentFile function
 		return customConfig.fullCommand;
 	}
 
@@ -459,17 +471,41 @@ function buildCommand(compileCmd: string, runCmd: string, cleanupCmd?: string): 
 	if (isWindows()) {
 		// Windows PowerShell syntax
 		if (cleanupCmd) {
-			return `${compileCmd}; if ($?) { ${runCmd}; ${cleanupCmd} }`;
+			return `${compileCmd}; if ($?) { ${runCmd} }; ${cleanupCmd}`;
 		} else {
 			return `${compileCmd}; if ($?) { ${runCmd} }`;
 		}
 	} else {
 		// Linux/macOS bash syntax
 		if (cleanupCmd) {
-			return `${compileCmd} && ${runCmd} && ${cleanupCmd}`;
+			return `${compileCmd} && ${runCmd}; ${cleanupCmd}`;
 		} else {
 			return `${compileCmd} && ${runCmd}`;
 		}
+	}
+}
+
+function buildCommandWithCd(command: string, directory: string): string {
+	// Escape directory path for different shells
+	const escapedDir = escapeDirectoryPath(directory);
+	
+	if (isWindows()) {
+		// Windows PowerShell syntax
+		return `cd "${escapedDir}"; if ($?) { ${command} }`;
+	} else {
+		// Linux/macOS bash syntax
+		return `cd "${escapedDir}" && ${command}`;
+	}
+}
+
+function escapeDirectoryPath(dirPath: string): string {
+	// Handle paths with spaces and special characters
+	if (isWindows()) {
+		// For Windows PowerShell, we already use quotes in buildCommandWithCd
+		return dirPath;
+	} else {
+		// For bash, escape special characters but we'll use quotes anyway
+		return dirPath;
 	}
 }
 
